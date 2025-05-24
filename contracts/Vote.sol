@@ -14,86 +14,107 @@ contract DecentralizedVoting {
         uint votedCandidateId;
     }
 
+    struct Election {
+        uint id;
+        string title;
+        bool started;
+        bool ended;
+        uint candidateCount;
+        mapping(uint => Candidate) candidates;
+        mapping(address => Voter) voters;
+    }
+
     address public admin;
-    bool public electionStarted;
-    bool public electionEnded;
-    uint public candidateCount;
+    uint public electionCount;
+    mapping(uint => Election) public elections;
 
-    mapping(uint => Candidate) public candidates;
-    mapping(address => Voter) public voters;
+    event CandidateAdded(uint electionId, uint candidateId, string name);
+    event VoteCast(uint electionId, address voter, uint candidateId);
+    event ElectionStarted(uint electionId);
+    event ElectionEnded(uint electionId);
+    event ElectionCreated(uint electionId, string title);
 
-    // --- Events ---
-    event CandidateAdded(uint candidateId, string name);
-    event VoteCast(address voter, uint candidateId);
-    event ElectionStarted();
-    event ElectionEnded();
-
-    // --- Modifiers ---
     modifier onlyAdmin() {
         require(msg.sender == admin, "Only admin can perform this");
         _;
     }
 
-    modifier onlyDuringElection() {
-        require(electionStarted && !electionEnded, "Election is not active");
-        _;
-    }
-
-    // --- Constructor ---
     constructor() {
         admin = msg.sender;
     }
 
-    // --- Functions ---
-    function addCandidate(string memory _name) public onlyAdmin {
-        candidateCount++;
-        candidates[candidateCount] = Candidate(candidateCount, _name, msg.sender, 0);
-        emit CandidateAdded(candidateCount, _name);
+    function createElection(string memory _title) public onlyAdmin {
+        electionCount++;
+        Election storage newElection = elections[electionCount];
+        newElection.id = electionCount;
+        newElection.title = _title;
+
+        emit ElectionCreated(electionCount, _title);
     }
 
-    function startElection() public onlyAdmin {
-        require(!electionStarted, "Election already started");
-        electionStarted = true;
-        emit ElectionStarted();
+    function addCandidate(uint electionId, string memory _name) public onlyAdmin {
+        Election storage e = elections[electionId];
+        require(!e.started, "Election already started");
+
+        e.candidateCount++;
+        e.candidates[e.candidateCount] = Candidate(
+            e.candidateCount,
+            _name,
+            msg.sender,
+            0
+        );
+
+        emit CandidateAdded(electionId, e.candidateCount, _name);
     }
 
-    function endElection() public onlyAdmin {
-        require(electionStarted, "Election hasn't started");
-        require(!electionEnded, "Election already ended");
-        electionEnded = true;
-        emit ElectionEnded();
+    function startElection(uint electionId) public onlyAdmin {
+        Election storage e = elections[electionId];
+        require(!e.started, "Election already started");
+
+        e.started = true;
+        emit ElectionStarted(electionId);
     }
 
-    function vote(uint _candidateId) public onlyDuringElection {
-        require(!voters[msg.sender].hasVoted, "You already voted");
-        require(_candidateId > 0 && _candidateId <= candidateCount, "Invalid candidate");
+    function endElection(uint electionId) public onlyAdmin {
+        Election storage e = elections[electionId];
+        require(e.started && !e.ended, "Election not active");
 
-        voters[msg.sender] = Voter(true, _candidateId);
-        candidates[_candidateId].voteCount++;
-
-        emit VoteCast(msg.sender, _candidateId);
+        e.ended = true;
+        emit ElectionEnded(electionId);
     }
 
-    function getCandidate(uint _candidateId) public view returns (string memory name, uint voteCount) {
-        require(_candidateId > 0 && _candidateId <= candidateCount, "Invalid candidate");
-        Candidate memory c = candidates[_candidateId];
+    function vote(uint electionId, uint candidateId) public {
+        Election storage e = elections[electionId];
+        require(e.started && !e.ended, "Election is not active");
+        require(!e.voters[msg.sender].hasVoted, "You already voted");
+        require(candidateId > 0 && candidateId <= e.candidateCount, "Invalid candidate");
+
+        e.voters[msg.sender] = Voter(true, candidateId);
+        e.candidates[candidateId].voteCount++;
+
+        emit VoteCast(electionId, msg.sender, candidateId);
+    }
+
+    function getCandidate(uint electionId, uint candidateId) public view returns (string memory name, uint voteCount) {
+        Candidate memory c = elections[electionId].candidates[candidateId];
         return (c.name, c.voteCount);
     }
 
-    function getWinner() public view returns (string memory winnerName, uint highestVotes) {
-        require(electionEnded, "Election not yet ended");
+    function getWinner(uint electionId) public view returns (string memory winnerName, uint highestVotes) {
+        Election storage e = elections[electionId];
+        require(e.ended, "Election not yet ended");
 
         uint maxVotes = 0;
         uint winningCandidateId = 0;
 
-        for (uint i = 1; i <= candidateCount; i++) {
-            if (candidates[i].voteCount > maxVotes) {
-                maxVotes = candidates[i].voteCount;
+        for (uint i = 1; i <= e.candidateCount; i++) {
+            if (e.candidates[i].voteCount > maxVotes) {
+                maxVotes = e.candidates[i].voteCount;
                 winningCandidateId = i;
             }
         }
 
-        winnerName = candidates[winningCandidateId].name;
-        highestVotes = candidates[winningCandidateId].voteCount;
+        winnerName = e.candidates[winningCandidateId].name;
+        highestVotes = e.candidates[winningCandidateId].voteCount;
     }
 }
