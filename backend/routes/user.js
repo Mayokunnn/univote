@@ -119,18 +119,5 @@ router.get("/:walletAddress", async (req, res) => {
   }
 });
 
-router.get("/test-abi", async (req, res) => {
-  try {
-    const encoded = contract.interface.encodeFunctionData("voteWithSignature", [
-      1,
-      2,
-      "0xa30d8c996d0fcf1ffbde4bc742a14f2cd8d553da",
-      "0x774d2f6e8319e0f4149abe82d4307bdeb056c5933bc21fd7aa8275dc2b4e1ffa037703ee676640d1bc5ebe7e8bec594a67fc9b21ec37c584e43f0c5d0ea514b21b",
-    ]);
-    res.json({ encoded });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 
 export default router;

@@ -225,4 +225,36 @@ contract DecentralizedVoting {
     function isElectionEnded(uint electionId) public view returns (bool) {
         return elections[electionId].ended;
     }
+
+    function getElectionCandidates(
+        uint electionId
+    )
+        public
+        view
+        returns (
+            uint[] memory ids,
+            string[] memory names,
+            address[] memory addresses,
+            uint[] memory voteCounts
+        )
+    {
+        Election storage e = elections[electionId];
+        uint count = e.candidateCount;
+
+        ids = new uint[](count);
+        names = new string[](count);
+        addresses = new address[](count);
+        voteCounts = new uint[](count);
+
+        for (uint i = 0; i < count; i++) {
+            uint candidateId = i + 1;
+            Candidate memory c = e.candidates[candidateId];
+            ids[i] = c.id;
+            names[i] = c.name;
+            addresses[i] = c.candidateAddress;
+            voteCounts[i] = c.voteCount;
+        }
+
+        return (ids, names, addresses, voteCounts);
+    }
 }

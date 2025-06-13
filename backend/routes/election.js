@@ -10,6 +10,141 @@ import Voter from "../models/voter.js";
 import { ethers } from "ethers";
 import { Sequelize } from "sequelize";
 
+// Utility function to sync election status
+async function syncElectionStatus(electionId) {
+  try {
+    const started = await contract.isElectionStarted(electionId);
+    const ended = await contract.isElectionEnded(electionId);
+
+    await Election.update(
+      {
+        isStarted: started,
+        isEnded: ended,
+        isNotStarted: !started && !ended,
+      },
+      { where: { id: electionId } }
+    );
+
+    return { started, ended };
+  } catch (error) {
+    console.error(`Error syncing election ${electionId} status:`, error);
+    throw error;
+  }
+}
+
+// Utility function to sync candidate votes
+async function syncCandidateVotes(electionId, candidateId) {
+  try {
+    const [name, voteCount] = await contract.getCandidate(
+      electionId,
+      candidateId
+    );
+
+    await Candidate.update(
+      {
+        voteCount: Number(voteCount),
+      },
+      { where: { id: candidateId, electionId } }
+    );
+
+    return { name, voteCount: Number(voteCount) };
+  } catch (error) {
+    console.error(`Error syncing candidate ${candidateId} votes:`, error);
+    throw error;
+  }
+}
+
+// Utility function to sync all candidates for an election
+async function syncAllCandidateVotes(electionId) {
+  try {
+    const candidates = await Candidate.findAll({
+      where: { electionId },
+      attributes: ["id"],
+    });
+
+    for (const candidate of candidates) {
+      await syncCandidateVotes(electionId, candidate.id);
+    }
+  } catch (error) {
+    console.error(
+      `Error syncing all candidates for election ${electionId}:`,
+      error
+    );
+    throw error;
+  }
+}
+
+// Update the syncCandidates function
+async function syncCandidates(electionId) {
+  try {
+    // Get all candidates from contract in one call
+    const [ids, names, addresses, voteCounts] =
+      await contract.getElectionCandidates(electionId);
+
+    // Get existing candidates from DB
+    const existingCandidates = await Candidate.findAll({
+      where: { electionId },
+      attributes: ["id", "name"],
+    });
+
+    // Create a map of existing candidates by ID
+    const existingMap = new Map(existingCandidates.map((c) => [c.id, c]));
+
+    // Update or create candidates
+    for (let i = 0; i < ids.length; i++) {
+      const id = Number(ids[i]);
+      const name = names[i];
+      const voteCount = Number(voteCounts[i]);
+      const candidateAddress = addresses[i];
+
+      if (existingMap.has(id)) {
+        // Update existing candidate
+        await Candidate.update(
+          {
+            name,
+            voteCount,
+            candidateAddress,
+          },
+          { where: { id, electionId } }
+        );
+      } else {
+        // Create new candidate
+        await Candidate.create({
+          id,
+          electionId,
+          name,
+          voteCount,
+          candidateAddress,
+        });
+      }
+    }
+
+    // Remove any candidates that no longer exist in the contract
+    const contractCandidateIds = ids.map((id) => Number(id));
+    const dbCandidateIds = existingCandidates.map((c) => c.id);
+    const candidatesToRemove = dbCandidateIds.filter(
+      (id) => !contractCandidateIds.includes(id)
+    );
+
+    if (candidatesToRemove.length > 0) {
+      await Candidate.destroy({
+        where: {
+          id: candidatesToRemove,
+          electionId,
+        },
+      });
+    }
+
+    return ids.length;
+  } catch (error) {
+    console.error(
+      `Error syncing candidates for election ${electionId}:`,
+      error
+    );
+    throw error;
+  }
+}
+
 // ADMIN ENDPOINTS
 router.post("/admin/elections", isAdmin, async (req, res) => {
   try {
@@ -234,12 +369,12 @@ router.post("/admin/end", isAdmin, async (req, res) => {
 router.post("/candidates/:electionId", async (req, res) => {
   try {
     const { electionId } = req.params;
-
+    // await syncCandidates(electionId);
+    // await syncAllCandidateVotes(electionId);
     const candidates = await Candidate.findAll({
       where: { electionId },
       attributes: ["id", "name", "voteCount"],
     });
-
     res.json(candidates);
   } catch (err) {
     console.error("Error fetching candidates:", err);
@@ -250,6 +385,13 @@ router.post("/candidates/:electionId", async (req, res) => {
 router.post("/all", async (req, res) => {
   try {
     const elections = await Election.findAll({
+      order: [["createdAt", "DESC"]],
+    });
+    // for (const election of elections) {
+    //   await syncElectionStatus(election.id);
+    //   await syncAllCandidateVotes(election.id);
+    // }
+    const updatedElections = await Election.findAll({
       order: [["createdAt", "DESC"]],
       attributes: {
         include: [
@@ -264,10 +406,9 @@ router.post("/all", async (req, res) => {
         ],
       },
     });
-
-    // Convert to JSON for consistent response
-    const electionsWithVotes = elections.map((election) => election.toJSON());
-
+    const electionsWithVotes = updatedElections.map((election) =>
+      election.toJSON()
+    );
     res.json(electionsWithVotes);
   } catch (err) {
     console.error("Error fetching elections:", err.message, err.stack);
@@ -278,22 +419,12 @@ router.post("/all", async (req, res) => {
 router.post("/status/:electionId", async (req, res) => {
   try {
     const { electionId } = req.params;
-
-    // Fetch election status from smart contract
-    const started = await contract.isElectionStarted(electionId);
-    const ended = await contract.isElectionEnded(electionId);
-
-    // Update database
-    await Election.update(
-      {
-        isStarted: started,
-        isEnded: ended,
-        isNotStarted: !started && !ended,
-      },
-      { where: { id: electionId } }
-    );
-
-    res.json({ started, ended });
+    // const status = await syncElectionStatus(electionId);
+    const election = await Election.findByPk(electionId);
+    if (!election) {
+      return res.status(404).json({ error: "Election not found" });
+    }
+    res.json({ isStarted: election.isStarted, isEnded: election.isEnded });
   } catch (err) {
     console.error("Error fetching election status:", err);
     res.status(500).json({ error: err.message });
@@ -303,11 +434,44 @@ router.post("/status/:electionId", async (req, res) => {
 router.post("/winner/:electionId", async (req, res) => {
   try {
     const { electionId } = req.params;
-    const [winnerName, highestVotes] = await contract.getWinner(electionId);
-    res.json({ winnerName, highestVotes: highestVotes.toString() });
+    // await syncAllCandidateVotes(electionId);
+    const candidates = await Candidate.findAll({
+      where: { electionId },
+      order: [["voteCount", "DESC"]],
+      limit: 1,
+    });
+    if (candidates.length === 0) {
+      return res.status(404).json({ error: "No candidates found" });
+    }
+    res.json({
+      winnerName: candidates[0].name,
+      highestVotes: candidates[0].voteCount,
+    });
   } catch (err) {
     console.error("Error fetching winner:", err);
     res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/voters/:electionId/:address", async (req, res) => {
+  try {
+    const { electionId, address } = req.params;
+    const normalizedAddress = ethers.getAddress(address);
+    const voter = await Voter.findOne({
+      where: { electionId, walletAddress: normalizedAddress.toLowerCase() },
+    });
+    if (!voter) {
+      return res.json({ hasVoted: false, votedCandidateId: null });
+    }
+    res.json({
+      hasVoted: voter.hasVoted,
+      votedCandidateId: voter.votedCandidateId,
+    });
+  } catch (err) {
+    console.error("Error fetching voter:", err.message, err.stack);
+    res
+      .status(500)
+      .json({ error: err.message || "Failed to fetch voter info" });
   }
 });
 
@@ -323,12 +487,9 @@ router.post("/vote", validateEligibility, async (req, res) => {
     });
 
     if (!electionId || !candidateId || !address || !signature) {
-      return res
-        .status(400)
-        .json({
-          error:
-            "Election ID, candidate ID, address, and signature are required",
-        });
+      return res.status(400).json({
+        error: "Election ID, candidate ID, address, and signature are required",
+      });
     }
 
     // Normalize address
@@ -408,74 +569,5 @@ router.post("/vote", validateEligibility, async (req, res) => {
   }
 });
 
-router.post("/voters/:electionId/:address", async (req, res) => {
-  try {
-    const { electionId, address } = req.params;
-
-    // Validate inputs
-    const electionIdNum = parseInt(electionId);
-    if (isNaN(electionIdNum) || electionIdNum <= 0) {
-      return res.status(400).json({ error: "Invalid election ID" });
-    }
-    if (!ethers.isAddress(address)) {
-      return res.status(400).json({ error: "Invalid Ethereum address" });
-    }
-    const normalizedAddress = ethers.getAddress(address); // Normalize case
-
-    // Verify election exists
-    const election = await Election.findByPk(electionIdNum);
-    if (!election) {
-      return res.status(404).json({ error: "Election not found" });
-    }
-
-    // Get voter data from contract
-    let contractHasVoted = false;
-    let contractVotedCandidateId = 0;
-    try {
-      const [hasVoted, votedCandidateId] = await contract.getVoter(
-        electionIdNum,
-        normalizedAddress
-      );
-      contractHasVoted = hasVoted;
-      contractVotedCandidateId = Number(votedCandidateId); // Handle BigInt
-    } catch (error) {
-      console.error(
-        `Contract getVoter error for election ${electionIdNum}, address ${normalizedAddress}:`,
-        error.message
-      );
-    }
-
-    // Check Voters table
-    const voter = await Voter.findOne({
-      where: {
-        electionId: electionIdNum,
-        walletAddress: normalizedAddress.toLowerCase(),
-      },
-    });
-    const dbHasVoted = voter ? voter.hasVoted : false;
-    const dbVotedCandidateId = voter ? voter.votedCandidateId || 0 : 0;
-
-    // Determine final voter status
-    const finalHasVoted = contractHasVoted; // Require both to confirm vote
-    // const finalVotedCandidateId = finalHasVoted ? (dbVotedCandidateId || contractVotedCandidateId) : 0;
-
-    // // Log for debugging
-    // console.log(`Voter status for election ${electionIdNum}, address ${normalizedAddress}:`, {
-    //   contract: { hasVoted: contractHasVoted, votedCandidateId: contractVotedCandidateId },
-    //   db: { hasVoted: dbHasVoted, votedCandidateId: dbVotedCandidateId },
-    //   final: { hasVoted: finalHasVoted, votedCandidateId: finalVotedCandidateId },
-    // });
-
-    res.json({
-      hasVoted: finalHasVoted,
-      votedCandidateId: contractVotedCandidateId.toString(),
-    });
-  } catch (err) {
-    console.error("Error fetching voter:", err.message, err.stack);
-    res
-      .status(500)
-      .json({ error: err.message || "Failed to fetch voter info" });
-  }
-});
-
 export default router;
+export { syncElectionStatus, syncAllCandidateVotes, syncCandidates };
