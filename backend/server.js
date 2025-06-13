@@ -6,6 +6,9 @@ import Election from "./models/elections.js";
 
 import electionRoutes from "./routes/election.js";
 import userRoutes from "./routes/user.js";
+import Candidate from "./models/candidates.js";
+import User from "./models/user.js";
+import checkLoggedIn from "./middleware/checkLoggedIn.js";
 
 dotenv.config();
 
@@ -27,7 +30,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-app.use("/api/election", electionRoutes);
+app.use("/api/election", checkLoggedIn, electionRoutes);
 app.use("/api/user", userRoutes);
 
 const PORT = process.env.PORT || 5000;

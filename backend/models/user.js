@@ -20,6 +20,10 @@ const User = sequelize.define("User", {
     allowNull: false,
     unique: true,
   },
+  loggedIn: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true,
+  },
   isAdmin: {
     type: DataTypes.BOOLEAN,
     defaultValue: false,

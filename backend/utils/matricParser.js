@@ -1,8 +1,6 @@
 const programMap = {
-    CG: { department: "CIS", program: "CS" },
-    CH: { department: "CIS", program: "MIS" },
-    AK: { department: "PSIR", program: "PSS" },
-    // Add more here
+    CG: { department: "Computer and Information Science", program: "CS" },
+    CH: { department: "Computer and Information Science", program: "MIS" },
   };
   
   function extractAcademicInfo(matricNumber) {

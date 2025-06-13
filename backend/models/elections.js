@@ -7,16 +7,24 @@ const Election = sequelize.define("Election", {
     allowNull: false,
   },
   type: {
-    type: DataTypes.ENUM("program", "department"),
+    type: DataTypes.ENUM("general", "program", "department"),
     allowNull: false,
   },
   allowedValues: {
     type: DataTypes.ARRAY(DataTypes.STRING),
     allowNull: false,
   },
-  isActive: {
+  isStarted: {
     type: DataTypes.BOOLEAN,
     defaultValue: false,
+  },
+  isEnded: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+  },
+  isNotStarted: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true,
   },
 });
 

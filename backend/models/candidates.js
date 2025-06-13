@@ -1,7 +1,7 @@
 import { DataTypes } from "sequelize";
-import db from "./index.js"; // your sequelize instance
+import sequelize from "../db.js"; // your sequelize instance
 
-const Candidate = db.define(
+const Candidate = sequelize.define(
   "Candidate",
   {
     id: {
@@ -25,9 +25,13 @@ const Candidate = db.define(
       type: DataTypes.STRING,
       allowNull: true,
     },
+    voteCount: {
+      type: DataTypes.INTEGER,
+      defaultValue: 0,
+    },
   },
   {
-    tableName: "candidates",
+    tableName: "Candidates",
     timestamps: true,
   }
 );
