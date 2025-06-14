@@ -5,10 +5,9 @@
   "main": "server.js",
   "type": "module",
   "scripts": {
+    "vercel-build": "npx hardhat compile && npx sequelize-cli db:migrate",
     "start": "node api/server.js",
-    "dev": "nodemon",
-    "build": "tsc",
-    "vercel-build": "tsc"
+    "dev": "nodemon"
   },
   "keywords": [],
   "author": "",
