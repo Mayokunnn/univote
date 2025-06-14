@@ -5,9 +5,10 @@
   "main": "server.js",
   "type": "module",
   "scripts": {
-    "vercel-build": "echo 'Building...'",
+    "vercel-build": "tsc'",
     "start": "node api/server.js",
-    "dev": "nodemon"
+    "dev": "nodemon",
+    "build": "tsc"
   },
   "keywords": [],
   "author": "",
