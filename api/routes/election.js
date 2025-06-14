@@ -177,7 +177,7 @@ router.post("/admin/elections", isAdmin, async (req, res) => {
     // New election ID is electionCount + 1
     const newElectionId = Number(electionCount) + 1;
 
-    // Save in DB with smart contract's electionId
+    // Save in DB with smart contract's electionId and txHash
     const newElection = await Election.create({
       id: newElectionId,
       title,
@@ -186,11 +186,13 @@ router.post("/admin/elections", isAdmin, async (req, res) => {
       isStarted: false,
       isEnded: false,
       isNotStarted: true,
+      txHash: tx.hash,
     });
 
     res.status(201).json({
       message: "Election created successfully.",
       election: newElection,
+      txHash: tx.hash,
     });
   } catch (err) {
     console.error("Error creating election:", err);
@@ -293,24 +295,26 @@ router.post("/admin/candidates", isAdmin, async (req, res) => {
         .json({ error: "Failed to retrieve candidate ID from contract" });
     }
 
-    // Create candidate in DB with contract-generated candidateId as id
+    // Create candidate in DB with contract-generated candidateId as id and txHash
     const candidate = await Candidate.create({
-      id: onChainCandidateId, // Set DB id to contract's candidateId
+      id: onChainCandidateId,
       electionId,
       name,
       candidateAddress: null,
       voteCount: 0,
+      txHash: tx.hash,
     });
 
     res.status(201).json({
       message: "Candidate added successfully",
       candidate: {
-        id: candidate.id, // Contract-generated ID
+        id: candidate.id,
         electionId: candidate.electionId,
         name: candidate.name,
         candidateAddress: candidate.candidateAddress,
         voteCount: candidate.voteCount || 0,
       },
+      txHash: tx.hash,
     });
   } catch (err) {
     console.error("Error adding candidate:", err);
@@ -326,7 +330,7 @@ router.post("/admin/start", isAdmin, async (req, res) => {
     }
 
     const tx = await contract.startElection(electionId);
-    await tx.wait();
+    const receipt = await tx.wait();
 
     await Election.update(
       {
@@ -335,7 +339,10 @@ router.post("/admin/start", isAdmin, async (req, res) => {
       },
       { where: { id: electionId } }
     );
-    res.json({ message: "Election started successfully" });
+    res.json({
+      message: "Election started successfully",
+      txHash: tx.hash,
+    });
   } catch (err) {
     console.error("Error starting election:", err);
     res.status(500).json({ error: err.message });
@@ -350,7 +357,7 @@ router.post("/admin/end", isAdmin, async (req, res) => {
     }
 
     const tx = await contract.endElection(electionId);
-    await tx.wait();
+    const receipt = await tx.wait();
 
     await Election.update(
       {
@@ -358,7 +365,10 @@ router.post("/admin/end", isAdmin, async (req, res) => {
       },
       { where: { id: electionId } }
     );
-    res.json({ message: "Election ended successfully" });
+    res.json({
+      message: "Election ended successfully",
+      txHash: tx.hash,
+    });
   } catch (err) {
     console.error("Error ending election:", err);
     res.status(500).json({ error: err.message });
@@ -551,7 +561,7 @@ router.post("/vote", validateEligibility, async (req, res) => {
       receipt.status === 1 ? "Success" : "Failed"
     );
 
-    // Update database
+    // Update database with txHash
     await Candidate.increment("voteCount", {
       where: { id: candidateId, electionId },
     });
@@ -560,6 +570,7 @@ router.post("/vote", validateEligibility, async (req, res) => {
       walletAddress: normalizedAddress.toLowerCase(),
       hasVoted: true,
       votedCandidateId: candidateId,
+      txHash: tx.hash,
     });
 
     res.json({ message: "Vote cast successfully", txHash: tx.hash });

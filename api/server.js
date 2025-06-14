@@ -15,12 +15,17 @@ import userRoutes from "./routes/user.js";
 import Candidate from "./models/candidates.js";
 import User from "./models/user.js";
 import checkLoggedIn from "./middleware/checkLoggedIn.js";
+import { EventEmitter } from "events";
+
+// Increase max listeners
+EventEmitter.defaultMaxListeners = 20;
 
 dotenv.config();
 
 const app = express();
 
-(async () => {
+// Database sync function
+const syncDatabase = async () => {
   try {
     await sequelize.authenticate();
     await Election.sync();
@@ -31,26 +36,28 @@ const app = express();
   } catch (err) {
     console.error("❌ Database error:", err.message);
   }
-})();
+};
+
+// Sync database on startup
+syncDatabase();
 
 app.use(cors());
 app.use(express.json());
-
 app.use("/api/election", checkLoggedIn, electionRoutes);
 app.use("/api/user", userRoutes);
-app.post("/admin/sync/:electionId", async (req, res) => {
-  const { electionId } = req.params;
-  try {
-    await syncElectionStatus(electionId);
-    await syncCandidates(electionId);
-    await syncAllCandidateVotes(electionId);
-    res.json({ message: "Sync completed" });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+
+// Health check endpoint
+app.get("/health", (req, res) => {
+  res.status(200).json({ status: "ok" });
 });
 
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+// Handle serverless environment
+if (process.env.NODE_ENV !== "production") {
+  const PORT = process.env.PORT || 5000;
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+}
+
+// Export for Vercel
+export default app;

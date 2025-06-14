@@ -9,6 +9,11 @@ const Candidate = sequelize.define(
       autoIncrement: true,
       primaryKey: true,
     },
+    uuid: {
+      type: DataTypes.UUID,
+      defaultValue: DataTypes.UUIDV4,
+      unique: true,
+    },
     electionId: {
       type: DataTypes.INTEGER,
       allowNull: false,
@@ -28,6 +33,10 @@ const Candidate = sequelize.define(
     voteCount: {
       type: DataTypes.INTEGER,
       defaultValue: 0,
+    },
+    txHash: {
+      type: DataTypes.STRING,
+      allowNull: true,
     },
   },
   {
