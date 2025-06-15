@@ -35,8 +35,24 @@ const syncDatabase = async () => {
 
 // Sync database on startup
 syncDatabase();
+const allowedOrigins = [
+  "https://univote-edu.vercel.app",
+  "http://localhost:5173",
+];
 
-app.use(cors());
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    credentials: true, // If you're using cookies/auth tokens
+  })
+);
+
 app.use(express.json());
 app.use("/api/election", checkLoggedIn, electionRoutes);
 app.use("/api/user", userRoutes);
