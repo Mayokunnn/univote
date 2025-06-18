@@ -1,11 +1,15 @@
 // migrations/XXXX-create-candidates-table.js
 export async function up(queryInterface, Sequelize) {
   await queryInterface.createTable("Candidates", {
-    id: {
+    uuid: {
+      type: Sequelize.UUID,
+      defaultValue: Sequelize.literal("gen_random_uuid()"),
       allowNull: false,
-      autoIncrement: true,
       primaryKey: true,
-      type: Sequelize.INTEGER,
+    },
+    id: {
+      type: Sequelize.INTEGER, // on-chain candidate ID
+      allowNull: false,
     },
     electionId: {
       type: Sequelize.INTEGER,
@@ -32,10 +36,12 @@ export async function up(queryInterface, Sequelize) {
     createdAt: {
       allowNull: false,
       type: Sequelize.DATE,
+      defaultValue: Sequelize.fn("NOW"),
     },
     updatedAt: {
       allowNull: false,
       type: Sequelize.DATE,
+      defaultValue: Sequelize.fn("NOW"),
     },
   });
 }
