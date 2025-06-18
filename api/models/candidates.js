@@ -7,12 +7,12 @@ const Candidate = sequelize.define(
     id: {
       type: DataTypes.INTEGER,
       autoIncrement: true,
-      primaryKey: true,
     },
     uuid: {
       type: DataTypes.UUID,
       defaultValue: DataTypes.UUIDV4,
       unique: true,
+      primaryKey: true,
     },
     electionId: {
       type: DataTypes.INTEGER,

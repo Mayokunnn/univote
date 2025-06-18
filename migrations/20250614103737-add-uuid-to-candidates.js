@@ -9,6 +9,8 @@ export async function up(queryInterface, Sequelize) {
       defaultValue: Sequelize.UUIDV4,
       unique: true,
       allowNull: false,
+      primaryKey: true,
+      comment: "Unique identifier for each candidate",
     });
   }
 }
