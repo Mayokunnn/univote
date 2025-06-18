@@ -129,6 +129,8 @@ router.get("/:walletAddress", async (req, res) => {
           matricNumber: user.matricNumber,
           walletAddress: user.walletAddress,
           isAdmin: user.isAdmin,
+          program: user?.program,
+          department: user?.department,
         },
       });
     } else {
