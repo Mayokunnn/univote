@@ -32,7 +32,7 @@ const validateEligibility = async (req, res, next) => {
   const isEligible =
   election.type === "general" ||
   (election.type === "program" && election.allowedValues.includes(program)) ||
-  (election.type === "department" && election.allowedValues.includes(program));
+  (election.type === "department" && election.allowedValues.includes(department));
 
 
   if (!isEligible) {
