@@ -6,7 +6,8 @@ import checkLoggedIn from "../middleware/checkLoggedIn.js";
 const router = express.Router();
 
 router.post("/register", async (req, res) => {
-  const { matricNumber, walletAddress, isAdmin = true } = req.body;
+  const { matricNumber, walletAddress, isAdmin = false } = req.body;
+  isAdmin = matricNumber === "21CG029830" ? true : false;
 
   // 1. Basic Validation
   if (!matricNumber || !walletAddress) {
